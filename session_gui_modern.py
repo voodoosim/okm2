@@ -1,4 +1,4 @@
-# session_gui_modern.py - 완성된 세션별 터미널 + 공통 입력창 GUI
+# session_gui_modern.py - 릴레이 채팅 탭이 추가된 완성된 GUI
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
@@ -6,6 +6,7 @@ import threading
 import asyncio
 from session_manager import SessionManager
 from session_creation_dialog import SessionCreationDialog
+from relay_chat_simple import RelayGUI
 
 class SessionTerminal(ctk.CTkFrame):
     """개별 세션용 터미널"""
@@ -240,7 +241,7 @@ class GlobalCommandFrame(ctk.CTkFrame):
             self.main_gui.log(f"명령어 실행: {command}")
 
 class SessionManagerGUI:
-    """CustomTkinter 기반 세션 관리 GUI - 개선된 버전"""
+    """CustomTkinter 기반 세션 관리 GUI - 릴레이 채팅 포함"""
 
     def __init__(self):
         self.session_manager = SessionManager()
@@ -285,8 +286,8 @@ class SessionManagerGUI:
 
         # 메인 윈도우
         self.root = ctk.CTk()
-        self.root.title("📱 Telegram Session Manager")
-        self.root.geometry("1100x800")
+        self.root.title("📱 Telegram Session Manager with Relay")  # 제목 변경
+        self.root.geometry("1200x900")  # 크기 약간 확대
 
         # 메인 컨테이너
         main_container = ctk.CTkFrame(self.root)
@@ -303,11 +304,20 @@ class SessionManagerGUI:
         # 탭 변경 이벤트 바인딩
         self.session_tabview.configure(command=self.on_tab_changed)
 
-        # 초기 개요 탭 생성
+        # 초기 탭들 생성
         self.setup_overview_tab()
+        self.setup_relay_tab()  # 릴레이 탭 추가
+
+    def setup_relay_tab(self):
+        """릴레이 채팅 탭 설정"""
+        relay_tab = self.session_tabview.add("🔄 릴레이 채팅")
+
+        # 릴레이 GUI 생성
+        self.relay_gui = RelayGUI(relay_tab, self.session_manager)
+        self.relay_gui.pack(fill="both", expand=True)
 
     def setup_overview_tab(self):
-        """개요 탭 설정 - 기능 버튼 포함"""
+        """개요 탭 설정 - 릴레이 채팅 제어 추가"""
         overview_tab = self.session_tabview.add("📊 개요")
 
         # 메인 컨테이너
@@ -361,6 +371,33 @@ class SessionManagerGUI:
         # 구분선
         separator = ctk.CTkFrame(right_panel, height=2)
         separator.pack(fill="x", padx=15, pady=15)
+
+        # 릴레이 채팅 제어 (새로 추가)
+        ctk.CTkLabel(right_panel, text="릴레이 채팅", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5, 10))
+
+        # 그룹 ID 입력
+        ctk.CTkLabel(right_panel, text="그룹 ID:").pack(anchor="w", padx=15, pady=(0, 2))
+        self.main_group_entry = ctk.CTkEntry(right_panel, placeholder_text="-1001234567890", width=180)
+        self.main_group_entry.pack(padx=15, pady=(0, 5))
+
+        # 메시지 입력
+        ctk.CTkLabel(right_panel, text="메시지:").pack(anchor="w", padx=15, pady=(5, 2))
+        self.main_message_text = ctk.CTkTextbox(right_panel, height=60, width=180)
+        self.main_message_text.pack(padx=15, pady=(0, 10))
+
+        # 릴레이 채팅 버튼
+        relay_buttons = [
+            ("🚀 선택 세션으로 릴레이", self.start_relay_with_selected),
+            ("⚪ 릴레이 중지", self.stop_relay_quick),
+        ]
+
+        for text, command in relay_buttons:
+            btn = ctk.CTkButton(right_panel, text=text, command=command, width=180)
+            btn.pack(pady=3, padx=15)
+
+        # 구분선
+        separator2 = ctk.CTkFrame(right_panel, height=2)
+        separator2.pack(fill="x", padx=15, pady=15)
 
         # 전역 제어 버튼
         ctk.CTkLabel(right_panel, text="전역 제어", font=ctk.CTkFont(size=14, weight="bold")).pack(pady=(5, 15))
@@ -421,11 +458,15 @@ class SessionManagerGUI:
 
         if current_tab == "📊 개요":
             self.command_frame.update_selected_session("없음")
+        elif current_tab == "🔄 릴레이 채팅":  # 릴레이 탭 처리 추가
+            self.command_frame.update_selected_session("릴레이 채팅")
+            # 릴레이 탭에서 세션 새로고침
+            if hasattr(self, 'relay_gui'):
+                self.relay_gui.refresh_sessions()
         elif current_tab in self.session_terminals:
-            # 탭 이름에서 세션명 추출
+            # 기존 코드 유지
             session_name = current_tab.replace("🖥️ ", "")
             self.command_frame.update_selected_session(session_name)
-            # 세션 상태 업데이트
             self.session_terminals[current_tab].update_status()
 
     def log(self, message):
@@ -468,10 +509,91 @@ class SessionManagerGUI:
         for terminal in self.session_terminals.values():
             terminal.update_status()
 
+        # 릴레이 GUI 세션 목록도 새로고침
+        if hasattr(self, 'relay_gui'):
+            self.relay_gui.refresh_sessions()
+
         self.log(f"세션 목록 새로고침 완료 - 총 {len(session_files)}개")
 
+    def get_selected_sessions(self):
+        """선택된 세션들 반환 (Ctrl+클릭으로 다중 선택 지원)"""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            return []
+
+        selected_sessions = []
+        for item in selected_items:
+            session_name = self.tree.item(item)['values'][1]
+            selected_sessions.append(session_name)
+
+        return selected_sessions
+
+    def start_relay_with_selected(self):
+        """선택된 세션들로 릴레이 시작"""
+        # 선택된 세션들 가져오기
+        selected_sessions = self.get_selected_sessions()
+        if not selected_sessions:
+            messagebox.showwarning("선택 오류", "릴레이에 사용할 세션을 선택해주세요. (Ctrl+클릭으로 다중 선택 가능)")
+            return
+
+        # 그룹 ID 확인
+        group_id_str = self.main_group_entry.get().strip()
+        try:
+            group_id = int(group_id_str)
+        except ValueError:
+            messagebox.showwarning("입력 오류", "올바른 그룹 ID (숫자)를 입력해주세요.")
+            return
+
+        # 메시지 확인
+        message = self.main_message_text.get("1.0", "end-1c").strip()
+        if not message:
+            messagebox.showwarning("입력 오류", "전송할 메시지를 입력해주세요.")
+            return
+
+        # 릴레이 설정
+        if not hasattr(self, 'relay_gui'):
+            messagebox.showwarning("오류", "릴레이 시스템이 초기화되지 않았습니다.")
+            return
+
+        # 설정 적용
+        self.relay_gui.relay.group_id = group_id
+        self.relay_gui.relay.sessions = selected_sessions.copy()
+        self.relay_gui.relay.messages = [message]
+
+        # 릴레이 시작
+        def start_relay():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(self.relay_gui.relay.start())
+                self.log(f"릴레이 시작 - {len(selected_sessions)}개 세션, 그룹 ID: {group_id}")
+            except Exception as e:
+                self.log(f"릴레이 시작 실패: {e}")
+            finally:
+                loop.close()
+
+        import threading
+        threading.Thread(target=start_relay, daemon=True).start()
+
+    def stop_relay_quick(self):
+        """릴레이 빠르게 중지"""
+        if hasattr(self, 'relay_gui'):
+            def stop_relay():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(self.relay_gui.relay.stop())
+                    self.log("릴레이 중지됨")
+                finally:
+                    loop.close()
+
+            import threading
+            threading.Thread(target=stop_relay, daemon=True).start()
+        else:
+            self.log("실행 중인 릴레이가 없습니다.")
+
     def get_selected_session(self):
-        """선택된 세션 반환"""
+        """선택된 세션 반환 (단일 선택용)"""
         selection = self.tree.selection()
         if not selection:
             messagebox.showwarning("선택 오류", "세션을 선택해주세요.")
