@@ -1,6 +1,6 @@
-# session_creation_dialog.py - 완전 수정된 버전
-import tkinter as tk
-from tkinter import ttk, messagebox
+# session_creation_dialog.py - CustomTkinter 호환 버전
+import customtkinter as ctk
+from tkinter import messagebox  # tkinter import 제거, messagebox만 남김
 import threading
 import asyncio
 import os
@@ -8,53 +8,58 @@ from telethon import TelegramClient
 from session_manager import SessionManager
 
 class SessionCreationDialog:
-    """세션 생성 전용 다이얼로그"""
+    """세션 생성 전용 다이얼로그 (CustomTkinter 호환)"""
 
     def __init__(self, parent):
         self.parent = parent
         self.result = None
-        self.window = tk.Toplevel(parent)
+        self.window = ctk.CTkToplevel(parent)
         self.window.title("새 세션 생성")
-        self.window.geometry("400x300")
+        self.window.geometry("400x350")
         self.window.transient(parent)
         self.window.grab_set()
         self.setup_ui()
 
     def setup_ui(self):
         """UI 설정"""
-        main_frame = ttk.Frame(self.window, padding="20")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        # 메인 프레임
+        main_frame = ctk.CTkFrame(self.window)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
         # 제목
-        ttk.Label(main_frame, text="새 세션 생성", font=('Arial', 14, 'bold')).pack(pady=(0, 20))
+        title = ctk.CTkLabel(main_frame, text="새 세션 생성",
+                            font=ctk.CTkFont(size=16, weight="bold"))
+        title.pack(pady=(0, 20))
 
         # 전화번호 입력
-        ttk.Label(main_frame, text="전화번호 (+82 형식):").pack(anchor=tk.W)
-        self.phone_entry = ttk.Entry(main_frame, width=30)
-        self.phone_entry.pack(pady=(5, 15), fill=tk.X)
+        ctk.CTkLabel(main_frame, text="전화번호 (+82 형식):").pack(anchor="w", pady=(0, 5))
+        self.phone_entry = ctk.CTkEntry(main_frame, placeholder_text="+82")
+        self.phone_entry.pack(fill="x", pady=(0, 15))
         self.phone_entry.insert(0, "+82")
 
         # 세션 이름 입력
-        ttk.Label(main_frame, text="세션 이름:").pack(anchor=tk.W)
-        self.name_entry = ttk.Entry(main_frame, width=30)
-        self.name_entry.pack(pady=(5, 15), fill=tk.X)
+        ctk.CTkLabel(main_frame, text="세션 이름:").pack(anchor="w", pady=(0, 5))
+        self.name_entry = ctk.CTkEntry(main_frame, placeholder_text="세션 이름을 입력하세요")
+        self.name_entry.pack(fill="x", pady=(0, 15))
 
         # 인증 코드 입력 (숨김)
-        self.code_frame = ttk.Frame(main_frame)
-        self.code_label = ttk.Label(self.code_frame, text="인증 코드:")
-        self.code_entry = ttk.Entry(self.code_frame, width=30)
+        self.code_frame = ctk.CTkFrame(main_frame)
+        self.code_label = ctk.CTkLabel(self.code_frame, text="인증 코드:")
+        self.code_entry = ctk.CTkEntry(self.code_frame, placeholder_text="인증 코드를 입력하세요")
 
-        # 상태
-        self.status_label = ttk.Label(main_frame, text="전화번호와 세션 이름을 입력하세요")
-        self.status_label.pack(pady=10)
+        # 상태 표시
+        self.status_label = ctk.CTkLabel(main_frame, text="전화번호와 세션 이름을 입력하세요")
+        self.status_label.pack(pady=15)
 
-        # 버튼
-        button_frame = ttk.Frame(main_frame)
-        button_frame.pack(pady=20)
+        # 버튼 프레임
+        button_frame = ctk.CTkFrame(main_frame)
+        button_frame.pack(fill="x", pady=(20, 0))
 
-        self.create_button = ttk.Button(button_frame, text="세션 생성", command=self.start_creation)
-        self.create_button.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="취소", command=self.cancel).pack(side=tk.LEFT)
+        self.create_button = ctk.CTkButton(button_frame, text="세션 생성", command=self.start_creation)
+        self.create_button.pack(side="left", padx=(5, 10), fill="x", expand=True)
+
+        cancel_button = ctk.CTkButton(button_frame, text="취소", command=self.cancel)
+        cancel_button.pack(side="right", padx=(10, 5), fill="x", expand=True)
 
     def start_creation(self):
         """세션 생성 시작"""
@@ -124,10 +129,13 @@ class SessionCreationDialog:
         """인증 코드 입력 UI"""
         self.status_label.configure(text="텔레그램에서 받은 인증 코드를 입력하세요")
 
-        self.code_frame.pack(pady=(0, 15), fill=tk.X)
-        self.code_label.pack(anchor=tk.W)
-        self.code_entry.pack(pady=(5, 0), fill=tk.X)
+        self.code_frame.pack(fill="x", pady=(0, 15))
+        self.code_label.pack(anchor="w", pady=(0, 5))
+        self.code_entry.pack(fill="x")
         self.code_entry.focus()
+
+        # 윈도우 크기 조정
+        self.window.geometry("400x450")
 
         self.create_button.configure(text="인증 코드 확인", state='normal', command=self.submit_code)
 
@@ -153,6 +161,7 @@ class SessionCreationDialog:
         """생성 완료"""
         self.status_label.configure(text="세션 생성 완료!")
         self.result = True
+        messagebox.showinfo("성공", "세션이 성공적으로 생성되었습니다!")
         self.window.after(1000, self.close)
 
     def creation_failed(self):
