@@ -1,6 +1,7 @@
 # 텔레그램 세션 파일
-sessions/*.session
+sessions/*.session*
 *.session
+*.session-journal
 
 # 환경 변수 파일
 .env
